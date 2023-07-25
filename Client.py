@@ -1,4 +1,6 @@
 import socket
+from loguru import logger
+
 
 class Client:
     def __init__(self, host, port):
@@ -14,19 +16,20 @@ class Client:
                 if message.lower() == "exit":
                     break
                 self.client_socket.sendall(message.encode())
-                
+
                 data = self.client_socket.recv(1024)
                 if not data:
-                    print("Server closed the connection.")
+                    logger.info("Server closed the connection.")
                     break
-                print(f"Received from server: {data.decode()}")
+                logger.success(f"Received from server: {data.decode()}")
 
         except ConnectionResetError:
-            print("Server closed the connection unexpectedly.")
+            logger.error("Server closed the connection unexpectedly.")
         except KeyboardInterrupt:
-            print("Connection closed by the user.")
+            logger.error("Connection closed by the user.")
         finally:
             self.client_socket.close()
+
 
 if __name__ == "__main__":
     host = "127.0.0.1"  # Change this to the server's IP address

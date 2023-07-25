@@ -4,11 +4,14 @@ from tkinter import ttk
 from PIL import ImageTk, Image
 import json
 from loguru import logger
+import threading
+from Server import Server
+
 
 class WebCamController:
-    def __init__(self, camera_index=0):
+    def __init__(self, root, camera_index=0):
         self.camera = cv2.VideoCapture(camera_index)
-        self.root = tk.Tk()
+        self.root = root
         self.root.title("WebCamera Controller")
 
         self.video_label = tk.Label(self.root)
@@ -16,17 +19,43 @@ class WebCamController:
 
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack()
+        
+        # self.start_camera_button = tk.Button(
+        #     self.button_frame,
+        #     text="Start Camera",
+        #     command=self.update_video_feed,
+        # )
+        # self.start_camera_button.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        self.start_selection_button = tk.Button(
+            self.button_frame,
+            text="Start Region Selection",
+            command=self.start_region_selection,
+        )
+        self.start_selection_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.start_button = tk.Button(self.button_frame, text="Start Region Selection", command=self.start_region_selection)
-        self.start_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        self.save_button = tk.Button(self.button_frame, text="Save Region", command=self.save_selected_region, state=tk.DISABLED)
+        self.save_button = tk.Button(
+            self.button_frame,
+            text="Save Region",
+            command=self.save_selected_region,
+            state=tk.DISABLED,
+        )
         self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.delete_button = tk.Button(self.button_frame, text="Delete Region", command=self.delete_selected_region, state=tk.DISABLED)
+        self.delete_button = tk.Button(
+            self.button_frame,
+            text="Delete Region",
+            command=self.delete_selected_region,
+            state=tk.DISABLED,
+        )
         self.delete_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.exit_button = tk.Button(self.button_frame, text="Exit Region Selection", command=self.exit_region_selection, state=tk.DISABLED)
+        self.exit_button = tk.Button(
+            self.button_frame,
+            text="Exit Region Selection",
+            command=self.exit_region_selection,
+            state=tk.DISABLED,
+        )
         self.exit_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.coordinates_label = tk.Label(self.button_frame, text="Mouse Coordinates: ")
@@ -44,7 +73,11 @@ class WebCamController:
         self.region_table_frame = tk.Frame(self.root)
         self.region_table_frame.pack(pady=10)
 
-        self.region_table = ttk.Treeview(self.region_table_frame, columns=("name", "start_x", "start_y", "end_x", "end_y"), show="headings")
+        self.region_table = ttk.Treeview(
+            self.region_table_frame,
+            columns=("name", "start_x", "start_y", "end_x", "end_y"),
+            show="headings",
+        )
         self.region_table.heading("name", text="Name")
         self.region_table.heading("start_x", text="Start X")
         self.region_table.heading("start_y", text="Start Y")
@@ -52,7 +85,9 @@ class WebCamController:
         self.region_table.heading("end_y", text="End Y")
         self.region_table.pack(side=tk.LEFT)
 
-        self.region_table_scrollbar = ttk.Scrollbar(self.region_table_frame, orient=tk.VERTICAL, command=self.region_table.yview)
+        self.region_table_scrollbar = ttk.Scrollbar(
+            self.region_table_frame, orient=tk.VERTICAL, command=self.region_table.yview
+        )
         self.region_table_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.region_table.configure(yscrollcommand=self.region_table_scrollbar.set)
 
@@ -68,12 +103,12 @@ class WebCamController:
         self.update_region_table()
         self.update_video_feed()
 
-        self.root.protocol("WM_DELETE_WINDOW", self.exit_application)   
+        self.root.protocol("WM_DELETE_WINDOW", self.exit_application)
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
 
-        self.video_label.bind('<Motion>', self.update_coordinates)
-        self.root.mainloop()
-        
+        self.video_label.bind("<Motion>", self.update_coordinates)
+        # self.root.mainloop()
+
     def update_coordinates(self, event):
         coordinates_text = "Mouse Coordinates: ({}, {})".format(event.x, event.y)
         self.coordinates_label.config(text=coordinates_text)
@@ -85,20 +120,39 @@ class WebCamController:
 
             # Draw bounding boxes for all saved regions
             for region_name, region_data in self.regions.items():
-                start_x = region_data['start_x']
-                start_y = region_data['start_y']
-                end_x = region_data['end_x']
-                end_y = region_data['end_y']
+                start_x = region_data["start_x"]
+                start_y = region_data["start_y"]
+                end_x = region_data["end_x"]
+                end_y = region_data["end_y"]
                 color = (0, 255, 0)  # Default color (green)
                 if region_name == self.selected_region:
                     color = (255, 0, 0)  # Selected color (red)
                 cv2.rectangle(img, (start_x, start_y), (end_x, end_y), color, 2)
                 label = region_name
-                cv2.putText(img, label, (start_x, start_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.putText(
+                    img,
+                    label,
+                    (start_x, start_y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    color,
+                    1,
+                )
 
             # Draw bounding box overlay if a selection is in progress
-            if self.start_x is not None and self.start_y is not None and self.end_x is not None and self.end_y is not None:
-                cv2.rectangle(img, (self.start_x, self.start_y), (self.end_x, self.end_y), (0, 255, 0), 2)
+            if (
+                self.start_x is not None
+                and self.start_y is not None
+                and self.end_x is not None
+                and self.end_y is not None
+            ):
+                cv2.rectangle(
+                    img,
+                    (self.start_x, self.start_y),
+                    (self.end_x, self.end_y),
+                    (0, 255, 0),
+                    2,
+                )
 
             img = Image.fromarray(img)
             img_tk = ImageTk.PhotoImage(image=img)
@@ -113,9 +167,9 @@ class WebCamController:
         self.end_x = None
         self.end_y = None
         self.region_name_entry.delete(0, tk.END)
-        
+
         self.selection_in_progress = True
-        self.start_button.config(state=tk.DISABLED)
+        self.start_selection_button.config(state=tk.DISABLED)
         self.save_button.config(state=tk.NORMAL)
         self.delete_button.config(state=tk.DISABLED)
         self.exit_button.config(state=tk.NORMAL)
@@ -133,28 +187,25 @@ class WebCamController:
         self.end_x = event.x
         self.end_y = event.y
 
-    # def on_mouse_release(self, event):
-    #     if self.selection_in_progress:
-    #         self.video_label.after(100, self.unbind_mouse_events)
-
-    # def unbind_mouse_events(self):
-    #     self.video_label.unbind("<Button-1>")
-    #     self.video_label.unbind("<B1-Motion>")
-    #     self.video_label.unbind("<ButtonRelease-1>")
-    #     self.selection_in_progress = False
-
     def save_selected_region(self):
         region_name = self.region_name_entry.get()
         if region_name:
-            if self.start_x is not None and self.start_y is not None and self.end_x is not None and self.end_y is not None:
+            if (
+                self.start_x is not None
+                and self.start_y is not None
+                and self.end_x is not None
+                and self.end_y is not None
+            ):
                 selected_region = {
-                    'start_x': self.start_x,
-                    'start_y': self.start_y,
-                    'end_x': self.end_x,
-                    'end_y': self.end_y
+                    "start_x": self.start_x,
+                    "start_y": self.start_y,
+                    "end_x": self.end_x,
+                    "end_y": self.end_y,
                 }
                 self.regions[region_name] = selected_region
-                logger.success("Region '{}' saved: {}".format(region_name, selected_region))
+                logger.success(
+                    "Region '{}' saved: {}".format(region_name, selected_region)
+                )
 
                 # Update the region table
                 self.update_region_table()
@@ -180,7 +231,7 @@ class WebCamController:
         self.end_x = None
         self.end_y = None
         self.selected_region = None
-        self.start_button.config(state=tk.NORMAL)
+        self.start_selection_button.config(state=tk.NORMAL)
         self.save_button.config(state=tk.DISABLED)
         self.delete_button.config(state=tk.DISABLED)
         self.exit_button.config(state=tk.DISABLED)
@@ -199,11 +250,13 @@ class WebCamController:
 
         # Add regions to the table
         for region_name, region_data in self.regions.items():
-            start_x = region_data['start_x']
-            start_y = region_data['start_y']
-            end_x = region_data['end_x']
-            end_y = region_data['end_y']
-            self.region_table.insert("", tk.END, values=(region_name, start_x, start_y, end_x, end_y))
+            start_x = region_data["start_x"]
+            start_y = region_data["start_y"]
+            end_x = region_data["end_x"]
+            end_y = region_data["end_y"]
+            self.region_table.insert(
+                "", tk.END, values=(region_name, start_x, start_y, end_x, end_y)
+            )
 
     def load_saved_regions(self):
         try:
@@ -228,4 +281,16 @@ class WebCamController:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
 
-app = WebCamController()
+def run_server_in_thread():
+    host = "127.0.0.1"  # Use "0.0.0.0" to listen on all available network interfaces
+    port = 12345
+    server = Server(host, port)
+    server_thread = threading.Thread(target=server.start)
+    server_thread.daemon = True
+    server_thread.start()
+
+if __name__ == '__main__':
+    root = tk.Tk()
+    app = WebCamController(root)
+    run_server_in_thread()
+    root.mainloop()

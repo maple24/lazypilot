@@ -5,27 +5,37 @@ from PIL import ImageTk, Image
 import json
 from loguru import logger
 import threading
-from Server import Server
+import queue
+import numpy as np
 
 
 class WebCamController:
     def __init__(self, root, camera_index=0):
-        self.camera = cv2.VideoCapture(camera_index)
         self.root = root
+        self.queue = queue.Queue()
+        self.camera_index = camera_index
+        self.frame_height = 480
+        self.frame_width = 640
+        self.vid = None
+        self.camera_event = threading.Event()
         self.root.title("WebCamera Controller")
 
-        self.video_label = tk.Label(self.root)
-        self.video_label.pack()
+        self.capture_thread = threading.Thread(target=self.capture_video)
+        self.capture_thread.daemon = True
+        self.capture_thread.start()
+        
+        self.canvas = tk.Canvas(self.root, width=self.frame_width, height=self.frame_height)
+        self.canvas.pack()
 
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack()
         
-        # self.start_camera_button = tk.Button(
-        #     self.button_frame,
-        #     text="Start Camera",
-        #     command=self.update_video_feed,
-        # )
-        # self.start_camera_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.toggle_button = tk.Button(
+            self.button_frame,
+            text="Start Camera",
+            command=self.toggle_camera,
+        )
+        self.toggle_button.pack(side=tk.LEFT, padx=5, pady=5)
         
         self.start_selection_button = tk.Button(
             self.button_frame,
@@ -102,21 +112,58 @@ class WebCamController:
         self.load_saved_regions()
         self.update_region_table()
         self.update_video_feed()
+        # self.update()
 
         self.root.protocol("WM_DELETE_WINDOW", self.exit_application)
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
 
-        self.video_label.bind("<Motion>", self.update_coordinates)
+        self.canvas.bind("<Motion>", self.update_coordinates)
         # self.root.mainloop()
+
+    def toggle_camera(self):
+        if self.camera_event.is_set():
+            self.camera_event.clear()
+            self.toggle_button.config(text="Start Camera")
+            if self.vid is not None and self.vid.isOpened():
+                self.vid.release()
+                self.vid = None
+        else:
+            self.camera_event.set()
+            self.toggle_button.config(text="Stop Camera")
+
+    def resize_frame(self, frame):
+        h, w, _ = frame.shape
+        target_h, target_w = self.frame_height, self.frame_width
+        top = (target_h - h) // 2
+        bottom = top + h
+        left = (target_w - w) // 2
+        right = left + w
+        resized_frame = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+        resized_frame[top:bottom, left:right] = frame
+        return resized_frame
 
     def update_coordinates(self, event):
         coordinates_text = "Mouse Coordinates: ({}, {})".format(event.x, event.y)
         self.coordinates_label.config(text=coordinates_text)
 
+    def capture_video(self):
+        while True:
+            if self.camera_event.is_set():
+                if self.vid is None or not self.vid.isOpened():
+                    self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+                ret, frame = self.vid.read()
+                if ret:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame = self.resize_frame(frame)
+                    self.queue.put(frame)
+                else:
+                    break
+            else:
+                self.camera_event.wait()  # Wait for event to be set
+
     def update_video_feed(self):
-        ret, frame = self.camera.read()
-        if ret:
-            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        if not self.queue.empty():
+            frame = self.queue.get()
 
             # Draw bounding boxes for all saved regions
             for region_name, region_data in self.regions.items():
@@ -127,10 +174,10 @@ class WebCamController:
                 color = (0, 255, 0)  # Default color (green)
                 if region_name == self.selected_region:
                     color = (255, 0, 0)  # Selected color (red)
-                cv2.rectangle(img, (start_x, start_y), (end_x, end_y), color, 2)
+                cv2.rectangle(frame, (start_x, start_y), (end_x, end_y), color, 2)
                 label = region_name
                 cv2.putText(
-                    img,
+                    frame,
                     label,
                     (start_x, start_y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
@@ -147,18 +194,15 @@ class WebCamController:
                 and self.end_y is not None
             ):
                 cv2.rectangle(
-                    img,
+                    frame,
                     (self.start_x, self.start_y),
                     (self.end_x, self.end_y),
                     (0, 255, 0),
                     2,
                 )
-
-            img = Image.fromarray(img)
-            img_tk = ImageTk.PhotoImage(image=img)
-            self.video_label.img_tk = img_tk
-            self.video_label.config(image=img_tk)
-        self.video_label.after(30, self.update_video_feed)
+            self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
+            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        self.canvas.after(10, self.update_video_feed)
 
     def start_region_selection(self):
         # Reset the coordinates for the next selection
@@ -175,9 +219,9 @@ class WebCamController:
         self.exit_button.config(state=tk.NORMAL)
         self.region_name_entry.config(state=tk.NORMAL)
         self.region_name_entry.focus_set()
-        self.video_label.bind("<Button-1>", self.on_mouse_click)
-        self.video_label.bind("<B1-Motion>", self.on_mouse_drag)
-        # self.video_label.bind("<ButtonRelease-1>", self.on_mouse_release)
+        self.canvas.bind("<Button-1>", self.on_mouse_click)
+        self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
+        # self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
 
     def on_mouse_click(self, event):
         self.start_x = event.x
@@ -236,12 +280,15 @@ class WebCamController:
         self.delete_button.config(state=tk.DISABLED)
         self.exit_button.config(state=tk.DISABLED)
         self.region_name_entry.delete(0, tk.END)
-        self.video_label.unbind("<Button-1>")
-        self.video_label.unbind("<B1-Motion>")
-        self.video_label.unbind("<ButtonRelease-1>")
+        self.canvas.unbind("<Button-1>")
+        self.canvas.unbind("<B1-Motion>")
+        self.canvas.unbind("<ButtonRelease-1>")
 
     def exit_application(self):
         self.save_regions_to_file()
+        self.camera_event.clear()  # Turn off the camera before closing
+        if self.vid is not None and self.vid.isOpened():
+            self.vid.release()
         self.root.destroy()
 
     def update_region_table(self):
@@ -281,16 +328,8 @@ class WebCamController:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
 
-def run_server_in_thread():
-    host = "127.0.0.1"  # Use "0.0.0.0" to listen on all available network interfaces
-    port = 12345
-    server = Server(host, port)
-    server_thread = threading.Thread(target=server.start)
-    server_thread.daemon = True
-    server_thread.start()
 
 if __name__ == '__main__':
     root = tk.Tk()
-    app = WebCamController(root)
-    run_server_in_thread()
+    WebCamController(root)
     root.mainloop()

@@ -33,7 +33,9 @@ class Server:
                             self.clients.remove(sock)
                         else:
                             message = data.decode()
-                            logger.success(f"Received from {sock.getpeername()}: {message}")
+                            logger.success(
+                                f"Received from {sock.getpeername()}: {message}"
+                            )
                             self.handle_command(sock, message)
                     except (ConnectionResetError, ConnectionAbortedError):
                         logger.error(
@@ -55,7 +57,7 @@ class Server:
         except Exception as e:
             error_msg = f"Error executing command: {str(e)}"
             self.send_message(sock, error_msg.encode())
-    
+
     def handle_method(self):
         ...
 

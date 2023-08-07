@@ -7,36 +7,49 @@ from loguru import logger
 import threading
 import queue
 import numpy as np
+from typing import Optional
+import multiprocessing
+import time
 
 
 class WebCamController:
-    def __init__(self, root, camera_index=0):
+    thrd_q = queue.Queue()
+    frame_height = 480
+    frame_width = 640
+    vid = None
+    camera_event = threading.Event()
+    
+    def __init__(
+        self,
+        root: tk.Tk,
+        camera_index: int = 0,
+        proc_q: Optional[multiprocessing.Queue] = None,
+    ):
         self.root = root
-        self.queue = queue.Queue()
+        self.proc_q = proc_q
         self.camera_index = camera_index
-        self.frame_height = 480
-        self.frame_width = 640
-        self.vid = None
-        self.camera_event = threading.Event()
         self.root.title("WebCamera Controller")
 
-        self.capture_thread = threading.Thread(target=self.capture_video)
-        self.capture_thread.daemon = True
-        self.capture_thread.start()
-        
-        self.canvas = tk.Canvas(self.root, width=self.frame_width, height=self.frame_height)
+        # message handler thread
+        threading.Thread(target=self.message_handler, daemon=True).start()
+        # video capturer thread
+        threading.Thread(target=self.capture_video, daemon=True).start()
+
+        self.canvas = tk.Canvas(
+            self.root, width=self.frame_width, height=self.frame_height
+        )
         self.canvas.pack()
 
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack()
-        
+
         self.toggle_button = tk.Button(
             self.button_frame,
             text="Start Camera",
             command=self.toggle_camera,
         )
         self.toggle_button.pack(side=tk.LEFT, padx=5, pady=5)
-        
+
         self.start_selection_button = tk.Button(
             self.button_frame,
             text="Start Region Selection",
@@ -112,13 +125,10 @@ class WebCamController:
         self.load_saved_regions()
         self.update_region_table()
         self.update_video_feed()
-        # self.update()
 
         self.root.protocol("WM_DELETE_WINDOW", self.exit_application)
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
-
         self.canvas.bind("<Motion>", self.update_coordinates)
-        # self.root.mainloop()
 
     def toggle_camera(self):
         if self.camera_event.is_set():
@@ -148,6 +158,7 @@ class WebCamController:
 
     def capture_video(self):
         while True:
+            time.sleep(0.1)
             if self.camera_event.is_set():
                 if self.vid is None or not self.vid.isOpened():
                     self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
@@ -155,15 +166,15 @@ class WebCamController:
                 if ret:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame = self.resize_frame(frame)
-                    self.queue.put(frame)
+                    self.thrd_q.put(frame)
                 else:
                     break
             else:
                 self.camera_event.wait()  # Wait for event to be set
 
     def update_video_feed(self):
-        if not self.queue.empty():
-            frame = self.queue.get()
+        if not self.thrd_q.empty():
+            frame = self.thrd_q.get()
 
             # Draw bounding boxes for all saved regions
             for region_name, region_data in self.regions.items():
@@ -221,7 +232,6 @@ class WebCamController:
         self.region_name_entry.focus_set()
         self.canvas.bind("<Button-1>", self.on_mouse_click)
         self.canvas.bind("<B1-Motion>", self.on_mouse_drag)
-        # self.canvas.bind("<ButtonRelease-1>", self.on_mouse_release)
 
     def on_mouse_click(self, event):
         self.start_x = event.x
@@ -328,8 +338,19 @@ class WebCamController:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
 
+    def message_handler(self):
+        while True:
+            time.sleep(0.1)
+            if not self.proc_q.empty():
+                message = self.proc_q.get_nowait()
+                logger.info(message)
 
-if __name__ == '__main__':
+
+def WebCamApp(queue: Optional[multiprocessing.Queue] = None):
     root = tk.Tk()
-    WebCamController(root)
+    WebCamController(root, proc_q=queue)  # Pass the queue to TkinterApp
     root.mainloop()
+
+
+if __name__ == "__main__":
+    WebCamApp()

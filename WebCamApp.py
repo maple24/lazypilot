@@ -11,6 +11,7 @@ from typing import Optional
 import multiprocessing
 import time
 import zmq
+import os
 
 
 class WebCamApp:
@@ -20,6 +21,10 @@ class WebCamApp:
     frame_width = 640
     camera_event = threading.Event()
     vid = None
+    regions_path = os.path.join(os.path.dirname(__file__), 'regions.json')
+    images_folder = os.path.join(os.path.dirname(__file__), 'tmp')
+    if not os.path.exists(images_folder):
+        os.mkdir(images_folder)
 
     def __init__(
         self,
@@ -139,6 +144,7 @@ class WebCamApp:
             if self.vid is not None and self.vid.isOpened():
                 self.vid.release()
                 self.vid = None
+            self.clear_view()
         else:
             self.camera_event.set()
             self.toggle_button.config(text="Stop Camera")
@@ -259,9 +265,15 @@ class WebCamApp:
                     "end_y": self.end_y,
                 }
                 self.regions[region_name] = selected_region
-                logger.success(
-                    "Region '{}' saved: {}".format(region_name, selected_region)
-                )
+                
+                # save image in bounding box
+                frame = self.thrd_q.queue[-1] if not self.thrd_q.empty() else None
+                if frame is not None:
+                    filename = os.path.join(self.images_folder, f"{region_name}.png")
+                    cv2.imwrite(filename, cv2.cvtColor(frame[self.start_y:self.end_y, self.start_x:self.end_x], cv2.COLOR_RGB2BGR))
+                    logger.success(
+                        "Region '{}' saved: {}".format(region_name, selected_region)
+                    )
 
                 # Update the region table
                 self.update_region_table()
@@ -319,14 +331,14 @@ class WebCamApp:
 
     def load_saved_regions(self):
         try:
-            with open("regions.json", "r") as json_file:
+            with open(self.regions_path, "r") as json_file:
                 self.regions = json.load(json_file)
         except FileNotFoundError:
             logger.warning("Region file not found!")
             self.regions = {}
 
     def save_regions_to_file(self):
-        with open("regions.json", "w") as json_file:
+        with open(self.regions_path, "w") as json_file:
             json.dump(self.regions, json_file, indent=4)
 
     def on_table_select(self, event):
@@ -339,6 +351,9 @@ class WebCamApp:
             else:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
+
+    def clear_view(self):
+        self.thrd_q.queue.clear()  # Clear the queue to remove frames from view
 
     def zeromq_sub(self):
         context = zmq.Context()
@@ -358,6 +373,7 @@ class WebCamApp:
 
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):
     root = tk.Tk()
+    root.geometry("720x720")
     WebCamApp(root, proc_q=queue)  # Pass the queue to TkinterApp
     root.mainloop()
 

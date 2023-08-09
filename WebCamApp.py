@@ -10,14 +10,16 @@ import numpy as np
 from typing import Optional
 import multiprocessing
 import time
+import zmq
 
 
-class WebCamController:
+class WebCamApp:
+    zeromq = 'tcp://localhost:5556'
     thrd_q = queue.Queue()
     frame_height = 480
     frame_width = 640
-    vid = None
     camera_event = threading.Event()
+    vid = None
     
     def __init__(
         self,
@@ -31,7 +33,7 @@ class WebCamController:
         self.root.title("WebCamera Controller")
 
         # message handler thread
-        threading.Thread(target=self.message_handler, daemon=True).start()
+        threading.Thread(target=self.zeromq_sub, daemon=True).start()
         # video capturer thread
         threading.Thread(target=self.capture_video, daemon=True).start()
 
@@ -167,10 +169,10 @@ class WebCamController:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame = self.resize_frame(frame)
                     self.thrd_q.put(frame)
-                else:
-                    break
-            else:
-                self.camera_event.wait()  # Wait for event to be set
+                # else:
+                #     break
+            # else:
+            #     self.camera_event.wait()  # Wait for event to be set
 
     def update_video_feed(self):
         if not self.thrd_q.empty():
@@ -338,19 +340,23 @@ class WebCamController:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
 
-    def message_handler(self):
+    def zeromq_sub(self):
+        context = zmq.Context()
+        subscriber = context.socket(zmq.SUB)
+        subscriber.connect(self.zeromq)
+        subscriber.setsockopt(zmq.SUBSCRIBE, b"webcam")
+
         while True:
             time.sleep(0.1)
-            if not self.proc_q.empty():
-                message = self.proc_q.get_nowait()
-                logger.info(message)
-
-
-def WebCamApp(queue: Optional[multiprocessing.Queue] = None):
-    root = tk.Tk()
-    WebCamController(root, proc_q=queue)  # Pass the queue to TkinterApp
-    root.mainloop()
+            logger.debug("subbing")
+            topic, message = subscriber.recv_multipart()
+            logger.info(f"Subscriber webcam received: {message.decode('utf-8')}")
+            if message.decode() == 'open':
+                self.toggle_camera()
+            self.proc_q.put(f"received message: {message}")
 
 
 if __name__ == "__main__":
-    WebCamApp()
+    root = tk.Tk()
+    WebCamApp(root, proc_q=queue)  # Pass the queue to TkinterApp
+    root.mainloop()

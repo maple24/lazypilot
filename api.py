@@ -1,32 +1,43 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
 import multiprocessing
-
-
-# FastAPI setup
-app = FastAPI()
+import queue  # Import the queue module
+import zmq
+import uvicorn
+from loguru import logger
+from pydantic import BaseModel
 
 
 class Message(BaseModel):
-    message: str
+    topic: str
+    msg: str
 
+app = FastAPI()
 
 @app.get("/")
 async def read_root():
-    return {"message": "FastAPI is running!"}
+    return {"message": "Hello, FastAPI"}
 
-
-@app.post("/update_message/")
-async def update_message(message: Message):
-    app.queue.put(message.message)  # Put the message in the queue
-    return {"message": "Message updated successfully"}
-
+@app.post("/publish/")
+async def publish_message(message: Message):
+    app.publisher.send_multipart([message.topic.encode(), message.msg.encode()])
+    logger.success("message published!")
+    try:
+        result = app.queue.get(timeout=5)  # Wait for 5 seconds
+        return {"result": result}
+    except queue.Empty:
+        return {"result": "No result available within the timeout."}
 
 def run_fastapi(queue):
-    app.queue = queue  # Attach the queue to the FastAPI app
+    context = zmq.Context()
+    app.publisher = context.socket(zmq.PUB)
+    app.publisher.bind("tcp://*:5556")
+    app.queue = queue
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
+if __name__ == "__main__":
+    q = multiprocessing.Queue()
 
-if __name__ == '__main__':
-    run_fastapi(queue=multiprocessing.Queue())
+    # Start FastAPI server in a separate process
+    fastapi_process = multiprocessing.Process(target=run_fastapi, args=(q,))
+    fastapi_process.start()
+    fastapi_process.join()

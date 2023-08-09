@@ -2,18 +2,24 @@ import socket
 import select
 import subprocess
 from loguru import logger
+import threading
+from typing import Optional
+import multiprocessing
+import time
 
 
 class Server:
-    def __init__(self, host, port):
+    def __init__(self, host, port, proc_q: Optional[multiprocessing.Queue] = None):
         self.host = host
         self.port = port
+        self.proc_q = proc_q
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(10)
         self.clients = [self.server_socket]
         logger.info(f"Server listening on {self.host}:{self.port}")
+        threading.Thread(target=self.handle_message, daemon=True).start()
 
     def start(self):
         while True:
@@ -49,8 +55,10 @@ class Server:
         try:
             if message.startswith("execute:"):
                 command = message[len("execute:") :]
-                result = subprocess.check_output(command, shell=True)
-                self.send_message(sock, result)
+                # result = subprocess.check_output(command, shell=True)
+                # self.send_message(sock, result)
+                self.proc_q.put(command)
+                logger.info(f"Put command into queue: {command}")
             else:
                 response = "Invalid command. Please use 'execute:<command>' to execute commands."
                 self.send_message(sock, response.encode())
@@ -60,7 +68,7 @@ class Server:
 
     def handle_method(self):
         ...
-
+    
     def send_message(self, sock, message):
         sock.sendall(message)
 

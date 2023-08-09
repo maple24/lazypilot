@@ -14,13 +14,13 @@ import zmq
 
 
 class WebCamApp:
-    zeromq = 'tcp://localhost:5556'
+    zeromq = "tcp://localhost:5556"
     thrd_q = queue.Queue()
     frame_height = 480
     frame_width = 640
     camera_event = threading.Event()
     vid = None
-    
+
     def __init__(
         self,
         root: tk.Tk,
@@ -351,7 +351,7 @@ class WebCamApp:
             logger.debug("subbing")
             topic, message = subscriber.recv_multipart()
             logger.info(f"Subscriber webcam received: {message.decode('utf-8')}")
-            if message.decode() == 'open':
+            if message.decode() == "open":
                 self.toggle_camera()
             self.proc_q.put(f"received message: {message}")
 

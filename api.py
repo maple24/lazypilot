@@ -11,11 +11,14 @@ class Message(BaseModel):
     topic: str
     msg: str
 
+
 app = FastAPI()
+
 
 @app.get("/")
 async def read_root():
     return {"message": "Hello, FastAPI"}
+
 
 @app.post("/publish/")
 async def publish_message(message: Message):
@@ -27,12 +30,14 @@ async def publish_message(message: Message):
     except queue.Empty:
         return {"result": "No result available within the timeout."}
 
+
 def run_fastapi(queue):
     context = zmq.Context()
     app.publisher = context.socket(zmq.PUB)
     app.publisher.bind("tcp://*:5556")
     app.queue = queue
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
     q = multiprocessing.Queue()

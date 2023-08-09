@@ -2,23 +2,18 @@
 curl -X POST -H "Content-Type: application/json" -d '{"message": "Your message here"}' http://localhost:8000/update_message/
 curl -X POST http://localhost:8000/publish/YourMessageHere
 """
+"""
+architecture:
+zeroMQ to publish message to processes
+multiprocessing queue to get response back
+fastapi to provide restapi interface
+"""
 from WebCamApp import WebCamApp
 from Server import Server
 from api import run_fastapi
 import multiprocessing
 from typing import Optional
 import tkinter as tk
-
-# def run_server(queue: Optional[multiprocessing.Queue] = None):
-#     host = "127.0.0.1"  # Use "0.0.0.0" to listen on all available network interfaces
-#     port = 12345
-#     server = Server(host, port)
-#     try:
-#         server.start()
-#     except KeyboardInterrupt:
-#         print("Server stopped by the user.")
-#     finally:
-#         server.stop()
 
 
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):

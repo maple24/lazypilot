@@ -68,7 +68,7 @@ class Server:
 
     def handle_method(self):
         ...
-    
+
     def send_message(self, sock, message):
         sock.sendall(message)
 

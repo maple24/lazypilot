@@ -1,6 +1,7 @@
 import zmq
 import multiprocessing
 
+
 def sub1():
     context = zmq.Context()
 
@@ -11,6 +12,7 @@ def sub1():
     while True:
         topic, message = subscriber.recv_multipart()
         print(f"Subscriber 1 received: {message.decode('utf-8')}, {topic}")
+
 
 def sub2():
     context = zmq.Context()
@@ -24,6 +26,6 @@ def sub2():
         print(f"Subscriber 2 received: {message.decode('utf-8')}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     multiprocessing.Process(target=sub1).start()
     multiprocessing.Process(target=sub2).start()

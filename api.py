@@ -23,7 +23,7 @@ async def read_root():
 @app.post("/publish/")
 async def publish_message(message: Message):
     app.publisher.send_multipart([message.topic.encode(), message.msg.encode()])
-    logger.success("message published!")
+    logger.success(f"Message published: {message}")
     try:
         result = app.queue.get(timeout=5)  # Wait for 5 seconds
         return {"result": result}

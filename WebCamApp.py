@@ -348,15 +348,19 @@ class WebCamApp:
 
         while True:
             time.sleep(0.1)
-            logger.debug("subbing")
             topic, message = subscriber.recv_multipart()
-            logger.info(f"Subscriber webcam received: {message.decode('utf-8')}")
-            if message.decode() == "open":
+            msg_str = message.decode()
+            logger.info(f"Subscriber webcam received: {msg_str}")
+            if msg_str == "open":
                 self.toggle_camera()
-            self.proc_q.put(f"received message: {message}")
+            self.proc_q.put(f"received message: {msg_str}")
 
 
-if __name__ == "__main__":
+def run_webcam(queue: Optional[multiprocessing.Queue] = None):
     root = tk.Tk()
     WebCamApp(root, proc_q=queue)  # Pass the queue to TkinterApp
     root.mainloop()
+
+
+if __name__ == "__main__":
+    run_webcam(multiprocessing.Queue())

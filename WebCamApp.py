@@ -15,7 +15,7 @@ import os
 from ImageProcess import ImageProcess
 
 
-class WebCamApp:
+class WebcamApp:
     zeromq = "tcp://localhost:5556"
     thrd_q = queue.Queue()
     frame_height = 480
@@ -36,11 +36,11 @@ class WebCamApp:
         self.root = root
         self.proc_q = proc_q
         self.camera_index = camera_index
-        self.root.title("WebCamera Controller")
+        self.root.title("Webcamera Controller")
 
         self.method_mapping = {
-            "open_cam": self.toggle_camera,
-            "close_cam": self.toggle_camera,
+            "start_cam": self.start_camera,
+            "stop_cam": self.stop_camera,
             "open_video": "",
             "close_video": "",
         }
@@ -49,30 +49,44 @@ class WebCamApp:
         # video capturer thread
         threading.Thread(target=self.capture_video, daemon=True).start()
 
+        self.canvas_frame = tk.Frame(self.root, borderwidth=2, relief="solid")
+        self.canvas_frame.pack()
+        
         self.canvas = tk.Canvas(
-            self.root, width=self.frame_width, height=self.frame_height
+            self.canvas_frame, width=self.frame_width, height=self.frame_height
         )
         self.canvas.pack()
 
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack()
 
-        self.toggle_button = tk.Button(
+        self.start_button = tk.Button(
             self.button_frame,
             text="Start Camera",
-            command=self.toggle_camera,
+            command=self.start_camera,
         )
-        self.toggle_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.start_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.stop_button = tk.Button(
+            self.button_frame,
+            text="Stop Camera",
+            command=self.stop_camera,
+        )
+        self.stop_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        # regio_frame
+        self.region_frame = tk.Frame(self.root)
+        self.region_frame.pack(pady=10)
 
         self.start_selection_button = tk.Button(
-            self.button_frame,
+            self.region_frame,
             text="Start Region Selection",
             command=self.start_region_selection,
         )
         self.start_selection_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.save_button = tk.Button(
-            self.button_frame,
+            self.region_frame,
             text="Save Region",
             command=self.save_selected_region,
             state=tk.DISABLED,
@@ -80,7 +94,7 @@ class WebCamApp:
         self.save_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.delete_button = tk.Button(
-            self.button_frame,
+            self.region_frame,
             text="Delete Region",
             command=self.delete_selected_region,
             state=tk.DISABLED,
@@ -88,24 +102,20 @@ class WebCamApp:
         self.delete_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.exit_button = tk.Button(
-            self.button_frame,
+            self.region_frame,
             text="Exit Region Selection",
             command=self.exit_region_selection,
             state=tk.DISABLED,
         )
         self.exit_button.pack(side=tk.LEFT, padx=5, pady=5)
-
-        self.coordinates_label = tk.Label(self.button_frame, text="Mouse Coordinates: ")
-        self.coordinates_label.pack(side=tk.LEFT, padx=5, pady=5)
-
-        self.region_frame = tk.Frame(self.root)
-        self.region_frame.pack(pady=10)
-
         self.region_name_label = tk.Label(self.region_frame, text="Region Name:")
         self.region_name_label.pack(side=tk.LEFT)
 
         self.region_name_entry = tk.Entry(self.region_frame, width=30)
         self.region_name_entry.pack(side=tk.LEFT)
+
+        self.coordinates_label = tk.Label(self.region_frame, text="Mouse Coordinates: ")
+        self.coordinates_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.region_table_frame = tk.Frame(self.root)
         self.region_table_frame.pack(pady=10)
@@ -144,6 +154,16 @@ class WebCamApp:
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
         self.canvas.bind("<Motion>", self.update_coordinates)
 
+    def start_camera(self):
+        self.camera_event.set()
+    
+    def stop_camera(self):
+        self.camera_event.clear()
+        if self.vid is not None and self.vid.isOpened():
+            self.vid.release()
+            self.vid = None
+        self.clear_view()
+    
     def toggle_camera(self):
         if self.camera_event.is_set():
             self.camera_event.clear()
@@ -400,7 +420,7 @@ class WebCamApp:
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):
     root = tk.Tk()
     root.geometry("720x720")
-    WebCamApp(root, proc_q=queue)  # Pass the queue to TkinterApp
+    WebcamApp(root, proc_q=queue)  # Pass the queue to TkinterApp
     root.mainloop()
 
 

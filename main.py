@@ -1,4 +1,4 @@
-from WebCamApp import run_webcam
+from WebcamApp import run_webcam
 from api import run_fastapi
 import multiprocessing
 

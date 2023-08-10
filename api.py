@@ -5,12 +5,24 @@ import zmq
 import uvicorn
 from loguru import logger
 from pydantic import BaseModel
+import json
+from typing import Dict, Union
+
 
 
 class Message(BaseModel):
     topic: str
-    msg: str
+    action: Dict[str, Union[str, Dict[str, str]]]
 
+# {
+#     "topic": "webcam",
+#     "action": {
+#         "method": "compare",
+#         "params": {
+#             "name": ""
+#         }
+#     }
+# }
 
 app = FastAPI()
 
@@ -22,7 +34,7 @@ async def read_root():
 
 @app.post("/publish/")
 async def publish_message(message: Message):
-    app.publisher.send_multipart([message.topic.encode(), message.msg.encode()])
+    app.publisher.send_multipart([message.topic.encode(), json.dumps(message.action).encode()])
     logger.success(f"Message published: {message}")
     try:
         result = app.queue.get(timeout=5)  # Wait for 5 seconds

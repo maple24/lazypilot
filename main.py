@@ -4,7 +4,7 @@ import multiprocessing
 
 
 if __name__ == "__main__":
-    # init process queue
+    # Init process queue
     queue = multiprocessing.Queue()
 
     # Start FastAPI server in a separate process

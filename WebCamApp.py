@@ -12,6 +12,7 @@ import multiprocessing
 import time
 import zmq
 import os
+from ImageProcess import ImageProcess
 
 
 class WebCamApp:
@@ -21,8 +22,8 @@ class WebCamApp:
     frame_width = 640
     camera_event = threading.Event()
     vid = None
-    regions_path = os.path.join(os.path.dirname(__file__), 'regions.json')
-    images_folder = os.path.join(os.path.dirname(__file__), 'tmp')
+    regions_path = os.path.join(os.path.dirname(__file__), "regions.json")
+    images_folder = os.path.join(os.path.dirname(__file__), "tmp")
     if not os.path.exists(images_folder):
         os.mkdir(images_folder)
 
@@ -37,6 +38,12 @@ class WebCamApp:
         self.camera_index = camera_index
         self.root.title("WebCamera Controller")
 
+        self.method_mapping = {
+            "open_cam": self.toggle_camera,
+            "close_cam": self.toggle_camera,
+            "open_video": "",
+            "close_video": "",
+        }
         # message handler thread
         threading.Thread(target=self.zeromq_sub, daemon=True).start()
         # video capturer thread
@@ -265,12 +272,18 @@ class WebCamApp:
                     "end_y": self.end_y,
                 }
                 self.regions[region_name] = selected_region
-                
+
                 # save image in bounding box
                 frame = self.thrd_q.queue[-1] if not self.thrd_q.empty() else None
                 if frame is not None:
                     filename = os.path.join(self.images_folder, f"{region_name}.png")
-                    cv2.imwrite(filename, cv2.cvtColor(frame[self.start_y:self.end_y, self.start_x:self.end_x], cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(
+                        filename,
+                        cv2.cvtColor(
+                            frame[self.start_y : self.end_y, self.start_x : self.end_x],
+                            cv2.COLOR_RGB2BGR,
+                        ),
+                    )
                     logger.success(
                         "Region '{}' saved: {}".format(region_name, selected_region)
                     )
@@ -364,11 +377,21 @@ class WebCamApp:
         while True:
             time.sleep(0.1)
             topic, message = subscriber.recv_multipart()
-            msg_str = message.decode()
-            logger.info(f"Subscriber webcam received: {msg_str}")
-            if msg_str == "open":
-                self.toggle_camera()
-            self.proc_q.put(f"received message: {msg_str}")
+            message = json.loads(message.decode())
+            logger.info(f"Subscriber webcam received: {message}")
+            if message.get("method") == 'compare':
+                region = message.get("params").get("region")
+                frame = self.thrd_q.get(block=True) 
+                image = frame[self.regions.get("start_y") : self.regions.get("end_y"), self.regions.get("start_x") : self.regions.get("end_x")]
+                base = cv2.imread(os.path.join(self.images_folder, f"{region}.png"), 1)
+                res = ImageProcess.compare_image(image, base)
+            else:
+                selected_method = self.method_mapping.get(message)
+                if selected_method:
+                    res = selected_method()
+                else:
+                    logger.warning("Invalid option")
+            self.proc_q.put(f"Results of {message}: {res}")
 
 
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):

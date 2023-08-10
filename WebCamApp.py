@@ -379,10 +379,13 @@ class WebCamApp:
             topic, message = subscriber.recv_multipart()
             message = json.loads(message.decode())
             logger.info(f"Subscriber webcam received: {message}")
-            if message.get("method") == 'compare':
+            if message.get("method") == "compare":
                 region = message.get("params").get("region")
-                frame = self.thrd_q.get(block=True) 
-                image = frame[self.regions.get("start_y") : self.regions.get("end_y"), self.regions.get("start_x") : self.regions.get("end_x")]
+                frame = self.thrd_q.get(block=True)
+                image = frame[
+                    self.regions.get("start_y") : self.regions.get("end_y"),
+                    self.regions.get("start_x") : self.regions.get("end_x"),
+                ]
                 base = cv2.imread(os.path.join(self.images_folder, f"{region}.png"), 1)
                 res = ImageProcess.compare_image(image, base)
             else:

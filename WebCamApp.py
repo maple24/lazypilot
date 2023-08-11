@@ -387,6 +387,7 @@ class WebcamApp:
 
     def clear_view(self):
         self.thrd_q.queue.clear()  # Clear the queue to remove frames from view
+        self.canvas.delete("all")
 
     def zeromq_sub(self):
         context = zmq.Context()

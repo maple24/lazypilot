@@ -81,6 +81,7 @@ class WebcamApp:
             self.button_frame,
             text="Start Video",
             command=self.start_video,
+            state=tk.DISABLED,
         )
         self.start_video_button.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -100,7 +101,7 @@ class WebcamApp:
             self.region_frame,
             text="Start Region Selection",
             command=self.start_region_selection,
-            state=tk.DISABLED
+            state=tk.DISABLED,
         )
         self.start_selection_button.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -194,6 +195,7 @@ class WebcamApp:
         self.start_camera_button.config(state=tk.DISABLED)
         self.stop_camera_button.config(state=tk.NORMAL)
         self.start_selection_button.config(state=tk.NORMAL)
+        self.start_video_button.config(state=tk.NORMAL)
 
     def stop_camera(self):
         self.camera_event.clear()
@@ -251,7 +253,7 @@ class WebcamApp:
     def update_camera_feed(self):
         if not self.thrd_q.empty():
             frame = self.thrd_q.get()
-                        
+
             # Draw bounding boxes for all saved regions
             for region_name, region_data in self.regions.items():
                 start_x = region_data["start_x"]
@@ -451,12 +453,12 @@ class WebcamApp:
                 base = cv2.imread(os.path.join(self.images_folder, f"{region}.png"), 1)
                 res = ImageProcess.compare_image(image, base)
             else:
-                selected_method = self.method_mapping.get(message)
+                selected_method = self.method_mapping.get(message.get("method"))
                 if selected_method:
                     res = selected_method()
                 else:
                     logger.warning("Invalid option")
-            self.proc_q.put(f"Results of {message}: {res}")
+            self.proc_q.put(res)
 
 
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):

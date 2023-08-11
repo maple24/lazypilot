@@ -1,28 +1,49 @@
 import requests
 
-# URL where you want to send the POST request
-url = "http://localhost:8000/publish/"
 
-# Data to be sent in the POST request body (as a dictionary)
-data = {
-    "topic": "webcam",
-    "action": {"method": "compare", "params": {"region": "2", "thre": 0.01}},
-}
-data = {
-    "topic": "webcam",
-    "action": {"method": "start_cam", "params": {"region": "2", "thre": 0.01}},
-}
-data = {
-    "topic": "webcam",
-    "action": {"method": "close_cam", "params": {"region": "2", "thre": 0.01}},
-}
+class HTTPRequester:
+    def __init__(self, base_url):
+        self.base_url = base_url
 
-# Send the POST request with the data
-response = requests.post(url, json=data)
+    def send_request(self, method, endpoint, params=None, data=None, headers=None):
+        url = f"{self.base_url}{endpoint}"
+        try:
+            if method == "GET":
+                response = requests.get(url, params=params, headers=headers)
+            elif method == "POST":
+                response = requests.post(url, json=data, headers=headers)
+            else:
+                return "Invalid HTTP method"
 
-# Check the response
-if response.status_code == 200:
-    print("Request was successful")
-    print("Response:", response.text)
-else:
-    print("Request failed with status code:", response.status_code)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return f"An error occurred: {e}"
+
+
+if __name__ == "__main__":
+    compare = {
+        "topic": "webcam",
+        "action": {"method": "compare", "params": {"region": "2", "thre": 0.01}},
+    }
+    start_cam = {
+        "topic": "webcam",
+        "action": {"method": "start_cam"},
+    }
+    stop_cam = {
+        "topic": "webcam",
+        "action": {"method": "stop_cam"},
+    }
+    start_video = {
+        "topic": "webcam",
+        "action": {"method": "start_video"},
+    }
+    stop_video = {
+        "topic": "webcam",
+        "action": {"method": "stop_video"},
+    }
+    base_url = "http://localhost:1234/"
+    requester = HTTPRequester(base_url)
+
+    post_response = requester.send_request("POST", "publish/", data=stop_cam)
+    print("POST Response:", post_response)

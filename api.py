@@ -50,7 +50,7 @@ def run_fastapi(queue):
     app.publisher = context.socket(zmq.PUB)
     app.publisher.bind("tcp://*:5556")
     app.queue = queue
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=1234)
 
 
 if __name__ == "__main__":

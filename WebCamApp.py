@@ -23,6 +23,7 @@ class WebcamApp:
     camera_event = threading.Event()
     video_event = threading.Event()
     vid = None
+    out = None
     regions_path = os.path.join(os.path.dirname(__file__), "regions.json")
     images_folder = os.path.join(os.path.dirname(__file__), "tmp")
     if not os.path.exists(images_folder):
@@ -42,13 +43,13 @@ class WebcamApp:
         self.method_mapping = {
             "start_cam": self.start_camera,
             "stop_cam": self.stop_camera,
-            "start_video": "",
-            "stop_video": "",
+            "start_video": self.start_video,
+            "stop_video": self.stop_video,
         }
         # message handler thread
-        threading.Thread(target=self.zeromq_sub, daemon=True).start()
+        threading.Thread(target=self.thrd_zeromq_sub, daemon=True).start()
         # video capturer thread
-        threading.Thread(target=self.capture_camera, daemon=True).start()
+        threading.Thread(target=self.thrd_capture_camera, daemon=True).start()
 
         self.canvas_frame = tk.Frame(self.root, borderwidth=2, relief="solid")
         self.canvas_frame.pack()
@@ -99,6 +100,7 @@ class WebcamApp:
             self.region_frame,
             text="Start Region Selection",
             command=self.start_region_selection,
+            state=tk.DISABLED
         )
         self.start_selection_button.pack(side=tk.LEFT, padx=5, pady=5)
 
@@ -176,10 +178,22 @@ class WebcamApp:
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
         self.canvas.bind("<Motion>", self.update_coordinates)
 
+    def resize_frame(self, frame):
+        h, w, _ = frame.shape
+        target_h, target_w = self.frame_height, self.frame_width
+        top = (target_h - h) // 2
+        bottom = top + h
+        left = (target_w - w) // 2
+        right = left + w
+        resized_frame = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+        resized_frame[top:bottom, left:right] = frame
+        return resized_frame
+
     def start_camera(self):
         self.camera_event.set()
         self.start_camera_button.config(state=tk.DISABLED)
         self.stop_camera_button.config(state=tk.NORMAL)
+        self.start_selection_button.config(state=tk.NORMAL)
 
     def stop_camera(self):
         self.camera_event.clear()
@@ -188,6 +202,10 @@ class WebcamApp:
             self.vid = None
             self.start_camera_button.config(state=tk.NORMAL)
             self.stop_camera_button.config(state=tk.DISABLED)
+            self.start_selection_button.config(state=tk.DISABLED)
+            self.save_button.config(state=tk.DISABLED)
+            self.delete_button.config(state=tk.DISABLED)
+            self.exit_button.config(state=tk.DISABLED)
         self.clear_view()
 
     def start_video(self):
@@ -203,54 +221,36 @@ class WebcamApp:
             self.stop_video_button.config(state=tk.DISABLED)  # Disable the stop button
             self.start_video_button.config(state=tk.NORMAL)  # Disable the stop button
 
-    def resize_frame(self, frame):
-        h, w, _ = frame.shape
-        target_h, target_w = self.frame_height, self.frame_width
-        top = (target_h - h) // 2
-        bottom = top + h
-        left = (target_w - w) // 2
-        right = left + w
-        resized_frame = np.zeros((target_h, target_w, 3), dtype=np.uint8)
-        resized_frame[top:bottom, left:right] = frame
-        return resized_frame
-
     def update_coordinates(self, event):
         coordinates_text = "Mouse Coordinates: ({}, {})".format(event.x, event.y)
         self.coordinates_label.config(text=coordinates_text)
 
-    def capture_camera(self):
+    def thrd_capture_camera(self):
         while True:
-            time.sleep(0.1)
             if self.camera_event.is_set():
                 if self.vid is None or not self.vid.isOpened():
                     self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
                 ret, frame = self.vid.read()
                 if ret:
+                    self.save_video(frame)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame = self.resize_frame(frame)
                     self.thrd_q.put(frame)
 
-    def save_video(self):
-        while True:
-            time.sleep(0.1)
-            if self.video_event.is_set():
+    def save_video(self, frame):
+        if self.video_event.is_set():
+            if self.out is None:
                 fourcc = cv2.VideoWriter_fourcc(*"XVID")
-                output_filename = f"{self.frame_title}_video.avi"
+                output_filename = os.path.join(self.images_folder, "test.avi")
                 self.out = cv2.VideoWriter(
-                    output_filename, fourcc, 20.0, (self.frame_width, self.frame_height)
+                    output_filename, fourcc, 25.0, (self.frame_width, self.frame_height)
                 )
-
-            if self.is_saving:
-                if not self.queue.empty():
-                    frame = self.queue.get()
-                    self.out.write(frame)
-                else:
-                    self.stop_video()
+            self.out.write(frame)
 
     def update_camera_feed(self):
         if not self.thrd_q.empty():
             frame = self.thrd_q.get()
-
+                        
             # Draw bounding boxes for all saved regions
             for region_name, region_data in self.regions.items():
                 start_x = region_data["start_x"]
@@ -334,19 +334,19 @@ class WebcamApp:
                 self.regions[region_name] = selected_region
 
                 # save image in bounding box
-                frame = self.thrd_q.queue[-1] if not self.thrd_q.empty() else None
-                if frame is not None:
-                    filename = os.path.join(self.images_folder, f"{region_name}.png")
-                    cv2.imwrite(
-                        filename,
-                        cv2.cvtColor(
-                            frame[self.start_y : self.end_y, self.start_x : self.end_x],
-                            cv2.COLOR_RGB2BGR,
-                        ),
-                    )
-                    logger.success(
-                        "Region '{}' saved: {}".format(region_name, selected_region)
-                    )
+                # frame = self.thrd_q.queue[-1] if not self.thrd_q.empty() else None
+                frame = self.thrd_q.get(block=True)
+                filename = os.path.join(self.images_folder, f"{region_name}.png")
+                cv2.imwrite(
+                    filename,
+                    cv2.cvtColor(
+                        frame[self.start_y : self.end_y, self.start_x : self.end_x],
+                        cv2.COLOR_RGB2BGR,
+                    ),
+                )
+                logger.success(
+                    "Region '{}' saved: {}".format(region_name, selected_region)
+                )
 
                 # Update the region table
                 self.update_region_table()
@@ -429,7 +429,7 @@ class WebcamApp:
         self.thrd_q.queue.clear()  # Clear the queue to remove frames from view
         self.canvas.delete("all")
 
-    def zeromq_sub(self):
+    def thrd_zeromq_sub(self):
         context = zmq.Context()
         subscriber = context.socket(zmq.SUB)
         subscriber.connect(self.zeromq)

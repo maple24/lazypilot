@@ -227,6 +227,7 @@ class WebcamApp:
 
     def thrd_capture_camera(self):
         while True:
+            time.sleep(0.1)
             if self.camera_event.is_set():
                 if self.vid is None or not self.vid.isOpened():
                     self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)

@@ -199,12 +199,15 @@ class WebcamApp:
 
     def stop_camera(self):
         self.camera_event.clear()
+        if self.video_event.is_set():
+            self.stop_video()
         if self.vid is not None and self.vid.isOpened():
             self.vid.release()
             self.vid = None
             self.start_camera_button.config(state=tk.NORMAL)
             self.stop_camera_button.config(state=tk.DISABLED)
             self.start_selection_button.config(state=tk.DISABLED)
+            self.start_video_button.config(state=tk.DISABLED)
             self.save_button.config(state=tk.DISABLED)
             self.delete_button.config(state=tk.DISABLED)
             self.exit_button.config(state=tk.DISABLED)

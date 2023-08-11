@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 import multiprocessing
-import queue  # Import the queue module
+import queue
 import zmq
 import uvicorn
 from loguru import logger
@@ -13,16 +13,6 @@ class Message(BaseModel):
     topic: str
     action: Dict[str, Union[str, Dict[str, str]]]
 
-
-# {
-#     "topic": "webcam",
-#     "action": {
-#         "method": "compare",
-#         "params": {
-#             "name": ""
-#         }
-#     }
-# }
 
 app = FastAPI()
 
@@ -45,7 +35,7 @@ async def publish_message(message: Message):
         return {"result": "No result available within the timeout."}
 
 
-def run_fastapi(queue):
+def run_fastapi(queue: multiprocessing.Queue):
     context = zmq.Context()
     app.publisher = context.socket(zmq.PUB)
     app.publisher.bind("tcp://*:5556")

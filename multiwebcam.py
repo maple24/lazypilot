@@ -6,53 +6,63 @@ import threading
 import queue
 import numpy as np
 
+
 class WebcamApp:
     def __init__(self, window, window_title):
         self.window = window
         self.window.title(window_title)
-        
-        self.notebook = ttk.Notebook(window)  # Use ttk.Notebook instead of tkinter.Notebook
-        self.notebook.pack(fill='both', expand=True)
-        
+
+        self.notebook = ttk.Notebook(
+            window
+        )  # Use ttk.Notebook instead of tkinter.Notebook
+        self.notebook.pack(fill="both", expand=True)
+
         self.camera_page_1 = tk.Frame(self.notebook)
         self.camera_page_2 = tk.Frame(self.notebook)
-        
-        self.notebook.add(self.camera_page_1, text='Camera 1')
-        self.notebook.add(self.camera_page_2, text='Camera 2')
-        
+
+        self.notebook.add(self.camera_page_1, text="Camera 1")
+        self.notebook.add(self.camera_page_2, text="Camera 2")
+
         self.camera_1 = CameraPage(self.camera_page_1, "Camera 1", video_source=0)
         self.camera_2 = CameraPage(self.camera_page_2, "Camera 2", video_source=1)
 
+
 # Camera page class
 class CameraPage:
-    def __init__(self, frame, frame_title, video_source=0, frame_width=640, frame_height=480):
+    def __init__(
+        self, frame, frame_title, video_source=0, frame_width=640, frame_height=480
+    ):
         self.frame = frame
         self.frame_title = frame_title
         self.video_source = video_source
         self.frame_width = frame_width
         self.frame_height = frame_height
-        
+
         self.queue = queue.Queue()
         self.camera_event = threading.Event()
         self.camera_event.clear()  # Initially, camera is off
-        
+
         self.vid = None  # VideoCapture object
-        
+
         self.capture_thread = threading.Thread(target=self.capture_video)
         self.capture_thread.daemon = True
         self.capture_thread.start()
-        
+
         self.canvas = tk.Canvas(self.frame, width=frame_width, height=frame_height)
         self.canvas.pack()
-        
-        self.toggle_button = tk.Button(self.frame, text="Start Camera", command=self.toggle_camera)
+
+        self.toggle_button = tk.Button(
+            self.frame, text="Start Camera", command=self.toggle_camera
+        )
         self.toggle_button.pack()
-        
-        self.clear_button = tk.Button(self.frame, text="Clear View", command=self.clear_view)
+
+        self.clear_button = tk.Button(
+            self.frame, text="Clear View", command=self.clear_view
+        )
         self.clear_button.pack()
-        
+
         self.update()
-        
+
     def capture_video(self):
         while True:
             if self.camera_event.is_set():
@@ -70,7 +80,7 @@ class CameraPage:
                     self.vid.release()
                     self.vid = None
                 self.camera_event.wait()  # Wait for event to be set
-    
+
     def toggle_camera(self):
         if self.camera_event.is_set():
             self.camera_event.clear()
@@ -81,10 +91,10 @@ class CameraPage:
         else:
             self.camera_event.set()
             self.toggle_button.config(text="Stop Camera")
-            
+
     def clear_view(self):
         self.queue.queue.clear()  # Clear the queue to remove frames from view
-        
+
     def resize_frame(self, frame):
         h, w, _ = frame.shape
         target_h, target_w = self.frame_height, self.frame_width
@@ -102,6 +112,7 @@ class CameraPage:
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
             self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
         self.frame.after(10, self.update)
+
 
 # Create a tkinter window
 root = tk.Tk()

@@ -21,6 +21,7 @@ class WebcamApp:
     frame_height = 480
     frame_width = 640
     camera_event = threading.Event()
+    video_event = threading.Event()
     vid = None
     regions_path = os.path.join(os.path.dirname(__file__), "regions.json")
     images_folder = os.path.join(os.path.dirname(__file__), "tmp")
@@ -36,22 +37,22 @@ class WebcamApp:
         self.root = root
         self.proc_q = proc_q
         self.camera_index = camera_index
-        self.root.title("Webcamera Controller")
+        self.root.title("WebcamApp")
 
         self.method_mapping = {
             "start_cam": self.start_camera,
             "stop_cam": self.stop_camera,
-            "open_video": "",
-            "close_video": "",
+            "start_video": "",
+            "stop_video": "",
         }
         # message handler thread
         threading.Thread(target=self.zeromq_sub, daemon=True).start()
         # video capturer thread
-        threading.Thread(target=self.capture_video, daemon=True).start()
+        threading.Thread(target=self.capture_camera, daemon=True).start()
 
         self.canvas_frame = tk.Frame(self.root, borderwidth=2, relief="solid")
         self.canvas_frame.pack()
-        
+
         self.canvas = tk.Canvas(
             self.canvas_frame, width=self.frame_width, height=self.frame_height
         )
@@ -60,23 +61,39 @@ class WebcamApp:
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack()
 
-        self.start_button = tk.Button(
+        self.start_camera_button = tk.Button(
             self.button_frame,
             text="Start Camera",
             command=self.start_camera,
         )
-        self.start_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.start_camera_button.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.stop_button = tk.Button(
+        self.stop_camera_button = tk.Button(
             self.button_frame,
             text="Stop Camera",
             command=self.stop_camera,
+            state=tk.DISABLED,
         )
-        self.stop_button.pack(side=tk.LEFT, padx=5, pady=5)
+        self.stop_camera_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.start_video_button = tk.Button(
+            self.button_frame,
+            text="Start Video",
+            command=self.start_video,
+        )
+        self.start_video_button.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.stop_video_button = tk.Button(
+            self.button_frame,
+            text="Stop Video",
+            command=self.stop_video,
+            state=tk.DISABLED,
+        )
+        self.stop_video_button.pack(side=tk.LEFT, padx=5, pady=5)
 
         # regio_frame
         self.region_frame = tk.Frame(self.root)
-        self.region_frame.pack(pady=10)
+        self.region_frame.pack(pady=5)
 
         self.start_selection_button = tk.Button(
             self.region_frame,
@@ -118,19 +135,24 @@ class WebcamApp:
         self.coordinates_label.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.region_table_frame = tk.Frame(self.root)
-        self.region_table_frame.pack(pady=10)
+        self.region_table_frame.pack(pady=5, fill=tk.BOTH, expand=True)
 
         self.region_table = ttk.Treeview(
             self.region_table_frame,
             columns=("name", "start_x", "start_y", "end_x", "end_y"),
             show="headings",
         )
-        self.region_table.heading("name", text="Name")
-        self.region_table.heading("start_x", text="Start X")
-        self.region_table.heading("start_y", text="Start Y")
-        self.region_table.heading("end_x", text="End X")
-        self.region_table.heading("end_y", text="End Y")
-        self.region_table.pack(side=tk.LEFT)
+        self.region_table.column("name", width=80, anchor=tk.CENTER)
+        self.region_table.column("start_x", width=80, anchor=tk.CENTER)
+        self.region_table.column("start_y", width=80, anchor=tk.CENTER)
+        self.region_table.column("end_x", width=80, anchor=tk.CENTER)
+        self.region_table.column("end_y", width=80, anchor=tk.CENTER)
+        self.region_table.heading("name", text="Name", anchor="center")
+        self.region_table.heading("start_x", text="Start X", anchor="center")
+        self.region_table.heading("start_y", text="Start Y", anchor="center")
+        self.region_table.heading("end_x", text="End X", anchor="center")
+        self.region_table.heading("end_y", text="End Y", anchor="center")
+        self.region_table.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.BOTH, expand=True)
 
         self.region_table_scrollbar = ttk.Scrollbar(
             self.region_table_frame, orient=tk.VERTICAL, command=self.region_table.yview
@@ -148,7 +170,7 @@ class WebcamApp:
 
         self.load_saved_regions()
         self.update_region_table()
-        self.update_video_feed()
+        self.update_camera_feed()
 
         self.root.protocol("WM_DELETE_WINDOW", self.exit_application)
         self.region_table.bind("<<TreeviewSelect>>", self.on_table_select)
@@ -156,25 +178,30 @@ class WebcamApp:
 
     def start_camera(self):
         self.camera_event.set()
-    
+        self.start_camera_button.config(state=tk.DISABLED)
+        self.stop_camera_button.config(state=tk.NORMAL)
+
     def stop_camera(self):
         self.camera_event.clear()
         if self.vid is not None and self.vid.isOpened():
             self.vid.release()
             self.vid = None
+            self.start_camera_button.config(state=tk.NORMAL)
+            self.stop_camera_button.config(state=tk.DISABLED)
         self.clear_view()
-    
-    def toggle_camera(self):
-        if self.camera_event.is_set():
-            self.camera_event.clear()
-            self.toggle_button.config(text="Start Camera")
-            if self.vid is not None and self.vid.isOpened():
-                self.vid.release()
-                self.vid = None
-            self.clear_view()
-        else:
-            self.camera_event.set()
-            self.toggle_button.config(text="Stop Camera")
+
+    def start_video(self):
+        self.video_event.set()
+        self.stop_video_button.config(state=tk.NORMAL)
+        self.start_video_button.config(state=tk.DISABLED)
+
+    def stop_video(self):
+        self.video_event.clear()
+        if self.out is not None:
+            self.out.release()
+            self.out = None
+            self.stop_video_button.config(state=tk.DISABLED)  # Disable the stop button
+            self.start_video_button.config(state=tk.NORMAL)  # Disable the stop button
 
     def resize_frame(self, frame):
         h, w, _ = frame.shape
@@ -191,7 +218,7 @@ class WebcamApp:
         coordinates_text = "Mouse Coordinates: ({}, {})".format(event.x, event.y)
         self.coordinates_label.config(text=coordinates_text)
 
-    def capture_video(self):
+    def capture_camera(self):
         while True:
             time.sleep(0.1)
             if self.camera_event.is_set():
@@ -202,12 +229,25 @@ class WebcamApp:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame = self.resize_frame(frame)
                     self.thrd_q.put(frame)
-                # else:
-                #     break
-            # else:
-            #     self.camera_event.wait()  # Wait for event to be set
 
-    def update_video_feed(self):
+    def save_video(self):
+        while True:
+            time.sleep(0.1)
+            if self.video_event.is_set():
+                fourcc = cv2.VideoWriter_fourcc(*"XVID")
+                output_filename = f"{self.frame_title}_video.avi"
+                self.out = cv2.VideoWriter(
+                    output_filename, fourcc, 20.0, (self.frame_width, self.frame_height)
+                )
+
+            if self.is_saving:
+                if not self.queue.empty():
+                    frame = self.queue.get()
+                    self.out.write(frame)
+                else:
+                    self.stop_video()
+
+    def update_camera_feed(self):
         if not self.thrd_q.empty():
             frame = self.thrd_q.get()
 
@@ -248,7 +288,7 @@ class WebcamApp:
                 )
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
             self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
-        self.canvas.after(10, self.update_video_feed)
+        self.canvas.after(10, self.update_camera_feed)
 
     def start_region_selection(self):
         # Reset the coordinates for the next selection

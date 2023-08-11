@@ -1,6 +1,7 @@
 # lazypilot
 
 ## architecture
+![architecture](assets/lazypilot.png)
 - zeroMQ to publish message to processes with [topic, message]
 - multiprocessing queue to get response back
 - fastapi to provide restapi interface

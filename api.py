@@ -13,13 +13,21 @@ class Message(BaseModel):
     topic: str
     action: Dict[str, Union[str, Dict[str, str]]]
 
+class TestMsg(BaseModel):
+    message: str
+
 
 app = FastAPI()
 
 
 @app.get("/")
 async def read_root():
-    return {"message": "Hello, FastAPI"}
+    return {"message": "Hello world"}
+
+
+@app.post("/test/")
+async def test(message: TestMsg):
+    return {"result": message}
 
 
 @app.post("/publish/")

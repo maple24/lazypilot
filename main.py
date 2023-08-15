@@ -4,6 +4,8 @@ import multiprocessing
 
 
 if __name__ == "__main__":
+    # necessary for pyinstaller
+    multiprocessing.freeze_support()
     # Init process queue
     queue = multiprocessing.Queue()
 

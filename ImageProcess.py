@@ -49,6 +49,31 @@ class ImageProcess:
         commutative_image_diff = (img_hist_diff / 10) + img_template_diff
         return commutative_image_diff
 
+    @staticmethod
+    def image_compare(image_1, image_2, thre: float = 0.9):
+        templ_h, templ_w = image_1.shape
+        method = cv2.TM_CCOEFF_NORMED
+        temp_matcher = cv2.matchTemplate(image_2, image_1, method)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(temp_matcher)
+        if method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+            top_left = min_loc
+            matchedValue = min_val
+        else:
+            top_left = max_loc
+            matchedValue = max_val
+        bottom_right = (top_left[0] + templ_w, top_left[1] + templ_h)
+        matchedRect = [top_left[0], top_left[1], bottom_right[0], bottom_right[1]]
+        matchedValue = round(matchedValue, 2)
+        if thre < matchedValue:
+            logger.success(
+                f"Matched, Rate: {matchedValue}, Thre: {thre}"
+            )
+            return True
+        logger.warning(
+            f"Unmatched, Rate: {matchedValue}, Thre: {thre}"
+        )
+        return False
+
     def __repr__(self) -> str:
         return f"Image_compare({self.image_1}, {self.image_2})"
 
@@ -60,8 +85,8 @@ if __name__ == "__main__":
     import os
 
     root = os.path.dirname(__file__)
-    img1 = os.path.join(root, "tmp", "3.png")
-    img2 = os.path.join(root, "tmp", "3_c.png")
-    img1 = cv2.imread(img1, 1)
-    img2 = cv2.imread(img2, 1)
-    ImageProcess.compare_image(img1, img2)
+    img1 = os.path.join(root, "dist", "webcamapp", "tmp", "2.png")
+    img2 = os.path.join(root, "dist", "webcamapp", "tmp", "2_c.png")
+    img1 = cv2.imread(img1, cv2.IMREAD_GRAYSCALE)
+    img2 = cv2.imread(img2, cv2.IMREAD_GRAYSCALE)
+    ImageProcess.image_compare(img1, img2)

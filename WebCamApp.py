@@ -351,10 +351,10 @@ class WebcamApp:
                         cv2.COLOR_RGB2BGR,
                     ),
                 )
+                self.save_regions_to_file()
                 logger.success(
                     "Region '{}' saved: {}".format(region_name, selected_region)
                 )
-
                 # Update the region table
                 self.update_region_table()
                 # Rebind the mouse events for next selection
@@ -376,6 +376,7 @@ class WebcamApp:
                     cv2.COLOR_RGB2BGR,
                 ),
             )
+            self.save_regions_to_file()
             logger.success("Region '{}' saved: {}".format(self.selected_region, region))
         else:
             logger.warning("No region name given!")
@@ -385,6 +386,7 @@ class WebcamApp:
         if self.selected_region:
             del self.regions[self.selected_region]
             self.update_region_table()
+            self.save_regions_to_file()
             logger.success("Region '{}' deleted.".format(self.selected_region))
 
     def exit_region_selection(self):
@@ -404,7 +406,7 @@ class WebcamApp:
         self.canvas.unbind("<ButtonRelease-1>")
 
     def exit_application(self):
-        self.save_regions_to_file()
+        # self.save_regions_to_file()
         self.camera_event.clear()  # Turn off the camera before closing
         if self.vid is not None and self.vid.isOpened():
             self.vid.release()
@@ -489,7 +491,7 @@ class WebcamApp:
         )
         img = cv2.imread(os.path.join(self.images_folder, f"{region_name}_c.png"), 1)
         base = cv2.imread(os.path.join(self.images_folder, f"{region_name}.png"), 1)
-        res = ImageProcess.compare_image(img, base, thre=thre)
+        res = ImageProcess.image_compare(img, base, thre=thre)
         return res
 
 

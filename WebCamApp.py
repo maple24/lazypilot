@@ -476,6 +476,7 @@ class WebcamApp:
             self.proc_q.put(res)
 
     def image_compare(self, region_name, thre=0.01):
+        # TBD: improvement, use frame directly
         region: dict = self.regions.get(region_name)
         frame = self.thrd_q.get(block=True)
         filename = os.path.join(self.images_folder, f"{region_name}_c.png")
@@ -489,8 +490,8 @@ class WebcamApp:
                 cv2.COLOR_RGB2BGR,
             ),
         )
-        img = cv2.imread(os.path.join(self.images_folder, f"{region_name}_c.png"), 1)
-        base = cv2.imread(os.path.join(self.images_folder, f"{region_name}.png"), 1)
+        img = cv2.imread(os.path.join(self.images_folder, f"{region_name}_c.png"), cv2.IMREAD_GRAYSCALE)
+        base = cv2.imread(os.path.join(self.images_folder, f"{region_name}.png"), cv2.IMREAD_GRAYSCALE)
         res = ImageProcess.image_compare(img, base, thre=thre)
         return res
 

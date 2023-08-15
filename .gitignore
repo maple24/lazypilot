@@ -222,6 +222,7 @@ $RECYCLE.BIN/
 # project
 regions.json
 tmp/
+lazypilot/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,visualstudiocode,python
 

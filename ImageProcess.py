@@ -32,6 +32,7 @@ class ImageProcess:
 
     @staticmethod
     def get_image_difference(image_1, image_2) -> int:
+        # range (0.0, 1.1)
         first_image_hist = cv2.calcHist([image_1], [0], None, [256], [0, 256])
         second_image_hist = cv2.calcHist([image_2], [0], None, [256], [0, 256])
         # if images are the same, histmatch return 0

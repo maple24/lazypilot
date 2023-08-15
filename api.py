@@ -11,7 +11,8 @@ from typing import Dict, Union
 
 class Message(BaseModel):
     topic: str
-    action: Dict[str, Union[str, Dict[str, str]]]
+    action: Dict[str, Union[str, dict]]
+
 
 class TestMsg(BaseModel):
     message: str

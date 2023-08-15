@@ -59,5 +59,8 @@ if __name__ == "__main__":
     import os
 
     root = os.path.dirname(__file__)
-    img1 = os.path.join(root, "tmp", "2.png")
-    ImageProcess.compare_image(img1, img1)
+    img1 = os.path.join(root, "tmp", "3.png")
+    img2 = os.path.join(root, "tmp", "3_c.png")
+    img1 = cv2.imread(img1, 1)
+    img2 = cv2.imread(img2, 1)
+    ImageProcess.compare_image(img1, img2)

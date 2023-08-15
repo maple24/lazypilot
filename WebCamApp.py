@@ -41,6 +41,7 @@ class WebcamApp:
         self.root.title("WebcamApp")
 
         self.method_mapping = {
+            "image_compare": self.image_compare,
             "start_cam": self.start_camera,
             "stop_cam": self.stop_camera,
             "start_video": self.start_video,
@@ -361,6 +362,21 @@ class WebcamApp:
             else:
                 logger.warning("No region selected!")
                 self.start_region_selection()
+        elif self.selected_region:
+            region: dict = self.regions[self.selected_region]
+            frame = self.thrd_q.get(block=True)
+            filename = os.path.join(self.images_folder, f"{self.selected_region}.png")
+            cv2.imwrite(
+                filename,
+                cv2.cvtColor(
+                    frame[
+                        region.get("start_y") : region.get("end_y"),
+                        region.get("start_x") : region.get("end_x"),
+                    ],
+                    cv2.COLOR_RGB2BGR,
+                ),
+            )
+            logger.success("Region '{}' saved: {}".format(self.selected_region, region))
         else:
             logger.warning("No region name given!")
             self.start_region_selection()
@@ -430,6 +446,7 @@ class WebcamApp:
             else:
                 self.selected_region = region_name
                 self.delete_button.config(state=tk.NORMAL)
+                self.save_button.config(state=tk.NORMAL)
 
     def clear_view(self):
         self.thrd_q.queue.clear()  # Clear the queue to remove frames from view
@@ -444,17 +461,10 @@ class WebcamApp:
         while True:
             time.sleep(0.1)
             topic, message = subscriber.recv_multipart()
-            message = json.loads(message.decode())
+            message: dict = json.loads(message.decode())
             logger.info(f"Subscriber webcam received: {message}")
-            if message.get("method") == "compare":
-                region = message.get("params").get("region")
-                frame = self.thrd_q.get(block=True)
-                image = frame[
-                    self.regions.get("start_y") : self.regions.get("end_y"),
-                    self.regions.get("start_x") : self.regions.get("end_x"),
-                ]
-                base = cv2.imread(os.path.join(self.images_folder, f"{region}.png"), 1)
-                res = ImageProcess.compare_image(image, base)
+            if message.get("method") == "image_compare":
+                res = self.image_compare(**message.get("params"))
             else:
                 selected_method = self.method_mapping.get(message.get("method"))
                 if selected_method:
@@ -462,6 +472,25 @@ class WebcamApp:
                 else:
                     logger.warning("Invalid option")
             self.proc_q.put(res)
+
+    def image_compare(self, region_name, thre=0.01):
+        region: dict = self.regions.get(region_name)
+        frame = self.thrd_q.get(block=True)
+        filename = os.path.join(self.images_folder, f"{region_name}_c.png")
+        cv2.imwrite(
+            filename,
+            cv2.cvtColor(
+                frame[
+                    region.get("start_y") : region.get("end_y"),
+                    region.get("start_x") : region.get("end_x"),
+                ],
+                cv2.COLOR_RGB2BGR,
+            ),
+        )
+        img = cv2.imread(os.path.join(self.images_folder, f"{region_name}_c.png"), 1)
+        base = cv2.imread(os.path.join(self.images_folder, f"{region_name}.png"), 1)
+        res = ImageProcess.compare_image(img, base, thre=thre)
+        return res
 
 
 def run_webcam(queue: Optional[multiprocessing.Queue] = None):

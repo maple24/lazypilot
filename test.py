@@ -24,7 +24,7 @@ class HTTPRequester:
 if __name__ == "__main__":
     compare = {
         "topic": "webcam",
-        "action": {"method": "compare", "params": {"region": "2", "thre": 0.01}},
+        "action": {"method": "image_compare", "params": {"region_name": "3", "thre": 0.01}},
     }
     start_cam = {
         "topic": "webcam",
@@ -45,5 +45,5 @@ if __name__ == "__main__":
     base_url = "http://localhost:1234/"
     requester = HTTPRequester(base_url)
 
-    post_response = requester.send_request("POST", "publish/", data=stop_cam)
+    post_response = requester.send_request("POST", "publish/", data=compare)
     print("POST Response:", post_response)

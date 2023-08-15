@@ -1,4 +1,5 @@
 # lazypilot
+![preview](assets/preview.png)
 
 ## architecture
 ![architecture](assets/lazypilot.png)

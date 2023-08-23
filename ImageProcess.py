@@ -1,6 +1,7 @@
 import cv2
 from typing import Optional
 from loguru import logger
+import numpy as np
 
 
 class ImageProcess:
@@ -51,19 +52,10 @@ class ImageProcess:
 
     @staticmethod
     def image_compare(image_1, image_2, thre: float = 0.9):
-        templ_h, templ_w = image_1.shape
         method = cv2.TM_CCOEFF_NORMED
         temp_matcher = cv2.matchTemplate(image_2, image_1, method)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(temp_matcher)
-        if method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
-            top_left = min_loc
-            matchedValue = min_val
-        else:
-            top_left = max_loc
-            matchedValue = max_val
-        bottom_right = (top_left[0] + templ_w, top_left[1] + templ_h)
-        matchedRect = [top_left[0], top_left[1], bottom_right[0], bottom_right[1]]
-        matchedValue = round(matchedValue, 2)
+        matchedValue = round(min_val, 2)
         if thre < matchedValue:
             logger.success(
                 f"Matched, Rate: {matchedValue}, Thre: {thre}"
@@ -71,6 +63,43 @@ class ImageProcess:
             return True
         logger.warning(
             f"Unmatched, Rate: {matchedValue}, Thre: {thre}"
+        )
+        return False
+    
+    @staticmethod
+    def image_compare_by_feature(image_1, image_2, thre: float = 0.9):
+        # sift = cv2.SIFT_create()
+        orb = cv2.ORB_create()
+        # Find keypoints and descriptors
+        keypoints1, descriptors1 = orb.detectAndCompute(image_1, None)
+        keypoints2, descriptors2 = orb.detectAndCompute(image_2, None)
+
+        # Initialize BFMatcher (Brute Force Matcher)
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        # Match descriptors
+        try:
+            matches = bf.match(descriptors1, descriptors2)
+        except:
+            logger.error("Image have different size!")
+            return False
+
+        # Sort them in ascending order of distance
+        matches = sorted(matches, key=lambda x: x.distance)
+        # Extract matched keypoints
+        matched_keypoints1 = np.array([keypoints1[match.queryIdx].pt for match in matches])
+        matched_keypoints2 = np.array([keypoints2[match.trainIdx].pt for match in matches])
+
+        # Calculate Fundamental matrix using RANSAC
+        fundamental_matrix, mask = cv2.findFundamentalMat(matched_keypoints1, matched_keypoints2, cv2.FM_RANSAC)
+        # Calculate inlier ratio
+        inlier_ratio = round(np.sum(mask) / len(matches), 2)
+        if thre < inlier_ratio:
+            logger.success(
+                f"Matched, Rate: {inlier_ratio}, Thre: {thre}"
+            )
+            return True
+        logger.warning(
+            f"Unmatched, Rate: {inlier_ratio}, Thre: {thre}"
         )
         return False
 
@@ -85,8 +114,8 @@ if __name__ == "__main__":
     import os
 
     root = os.path.dirname(__file__)
-    img1 = os.path.join(root, "dist", "webcamapp", "tmp", "2.png")
-    img2 = os.path.join(root, "dist", "webcamapp", "tmp", "2_c.png")
+    img1 = os.path.join(root, "tmp", "Android_Home_b.png")
+    img2 = os.path.join(root, "tmp", "Android_Home_d.png")
     img1 = cv2.imread(img1, cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(img2, cv2.IMREAD_GRAYSCALE)
-    ImageProcess.image_compare(img1, img2)
+    ImageProcess.image_compare_by_feature(img1, img2)

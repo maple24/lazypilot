@@ -237,6 +237,7 @@ class WebcamApp:
             if self.camera_event.is_set():
                 if self.vid is None or not self.vid.isOpened():
                     self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
+                    self.vid.set(cv2.CAP_PROP_AUTOFOCUS, 1)
                 ret, frame = self.vid.read()
                 if ret:
                     self.save_video(frame)

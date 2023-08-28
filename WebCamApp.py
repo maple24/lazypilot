@@ -295,6 +295,8 @@ class WebcamApp:
                     2,
                 )
             self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
+            if self.canvas.find_all():  # Check if an image already exists on the canvas
+                self.canvas.delete(self.photo)  # Delete the existing image
             self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
         self.canvas.after(10, self.update_camera_feed)
 

@@ -25,6 +25,7 @@ class WebcamApp:
     delay = round(1 / fps, 2)
     camera_event = threading.Event()
     video_event = threading.Event()
+    output_lock = threading.Lock()
     vid = None
     out = None
     regions_path = os.path.join(os.path.dirname(__file__), "regions.json")
@@ -233,11 +234,12 @@ class WebcamApp:
 
     def stop_video(self):
         self.video_event.clear()
-        if self.out is not None:
-            self.out.release()
-            self.out = None
-            self.stop_video_button.config(state=tk.DISABLED)  # Disable the stop button
-            self.start_video_button.config(state=tk.NORMAL)  # Disable the stop button
+        with self.output_lock:
+            if self.out is not None:
+                self.out.release()
+                self.out = None
+                self.stop_video_button.config(state=tk.DISABLED)  # Disable the stop button
+                self.start_video_button.config(state=tk.NORMAL)  # Disable the stop button
 
     def update_coordinates(self, event):
         coordinates_text = "Mouse Coordinates: ({}, {})".format(event.x, event.y)
@@ -261,13 +263,14 @@ class WebcamApp:
 
     def save_video(self, frame):
         if self.video_event.is_set():
-            if self.out is None:
-                fourcc = cv2.VideoWriter_fourcc(*"XVID")
-                output_filename = os.path.join(self.images_folder, "test.avi")
-                self.out = cv2.VideoWriter(
-                    output_filename, fourcc, self.fps, (self.frame_width, self.frame_height)
-                )
-            self.out.write(frame)
+            with self.output_lock:
+                if self.out is None:
+                    fourcc = cv2.VideoWriter_fourcc(*"XVID")
+                    output_filename = os.path.join(self.images_folder, "test.avi")
+                    self.out = cv2.VideoWriter(
+                        output_filename, fourcc, self.fps, (self.frame_width, self.frame_height)
+                    )
+                self.out.write(frame)
 
     def update_camera_feed(self):
         if not self.thrd_q.empty():

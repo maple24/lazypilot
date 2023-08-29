@@ -12,6 +12,7 @@ import multiprocessing
 import time
 import zmq
 import os
+import datetime
 from ImageProcess import ImageProcess
 
 
@@ -20,6 +21,8 @@ class WebcamApp:
     thrd_q = queue.Queue()
     frame_height = 480
     frame_width = 640
+    fps = 20.0
+    delay = round(1 / fps, 2)
     camera_event = threading.Event()
     video_event = threading.Event()
     vid = None
@@ -233,12 +236,14 @@ class WebcamApp:
 
     def thrd_capture_camera(self):
         while True:
-            time.sleep(0.1)
+            time.sleep(self.delay)
             if self.camera_event.is_set():
                 if self.vid is None or not self.vid.isOpened():
                     self.vid = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
                     self.vid.set(cv2.CAP_PROP_AUTOFOCUS, 1)
                 ret, frame = self.vid.read()
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                cv2.putText(frame, timestamp, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 if ret:
                     self.save_video(frame)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -251,7 +256,7 @@ class WebcamApp:
                 fourcc = cv2.VideoWriter_fourcc(*"XVID")
                 output_filename = os.path.join(self.images_folder, "test.avi")
                 self.out = cv2.VideoWriter(
-                    output_filename, fourcc, 25.0, (self.frame_width, self.frame_height)
+                    output_filename, fourcc, self.fps, (self.frame_width, self.frame_height)
                 )
             self.out.write(frame)
 

@@ -97,6 +97,14 @@ class WebcamApp:
         )
         self.stop_video_button.pack(side=tk.LEFT, padx=5, pady=5)
 
+        self.compare_button = tk.Button(
+            self.button_frame,
+            text="Compare Image",
+            command=lambda: self.image_compare(self.selected_region),
+            state=tk.DISABLED,
+        )
+        self.compare_button.pack(side=tk.LEFT, padx=5, pady=5)
+
         # regio_frame
         self.region_frame = tk.Frame(self.root)
         self.region_frame.pack(pady=5)
@@ -200,6 +208,7 @@ class WebcamApp:
         self.stop_camera_button.config(state=tk.NORMAL)
         self.start_selection_button.config(state=tk.NORMAL)
         self.start_video_button.config(state=tk.NORMAL)
+        self.compare_button.config(state=tk.NORMAL)
 
     def stop_camera(self):
         self.camera_event.clear()
@@ -483,9 +492,12 @@ class WebcamApp:
                     logger.warning("Invalid option")
             self.proc_q.put(res)
 
-    def image_compare(self, region_name, thre=0.01):
+    def image_compare(self, region_name, thre=0.9):
         # TBD: improvement, use frame directly
         region: dict = self.regions.get(region_name)
+        if not region:
+            logger.error("Region not exist!")
+            return
         frame = self.thrd_q.get(block=True)
         filename = os.path.join(self.images_folder, f"{region_name}_c.png")
         cv2.imwrite(

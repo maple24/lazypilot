@@ -6,6 +6,7 @@ import json
 from loguru import logger
 import threading
 import queue
+from collections import deque
 import numpy as np
 from typing import Optional
 import multiprocessing
@@ -19,6 +20,7 @@ from ImageProcess import ImageProcess
 class WebcamApp:
     zeromq = "tcp://localhost:5556"
     thrd_q = queue.Queue()
+    frames_queue = deque(maxlen=50)
     frame_height = 480
     frame_width = 640
     fps = 20.0
@@ -28,6 +30,7 @@ class WebcamApp:
     output_lock = threading.Lock()
     vid = None
     out = None
+    photo = None
     regions_path = os.path.join(os.path.dirname(__file__), "regions.json")
     images_folder = os.path.join(os.path.dirname(__file__), "tmp")
     if not os.path.exists(images_folder):
@@ -311,10 +314,13 @@ class WebcamApp:
                     (0, 255, 0),
                     2,
                 )
-            self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame))
-            if self.canvas.find_all():  # Check if an image already exists on the canvas
+            self.frames_queue.append(frame)
+            if self.photo:  # Check if an image already exists on the canvas
                 self.canvas.delete(self.photo)  # Delete the existing image
-            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+            if self.frames_queue:
+                recent_frame = self.frames_queue[-1]
+                self.photo = ImageTk.PhotoImage(image=Image.fromarray(recent_frame))
+                self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
         self.canvas.after(10, self.update_camera_feed)
 
     def start_region_selection(self):
@@ -472,7 +478,9 @@ class WebcamApp:
 
     def clear_view(self):
         self.thrd_q.queue.clear()  # Clear the queue to remove frames from view
+        self.frames_queue.clear()
         self.canvas.delete("all")
+        self.photo = None
 
     def thrd_zeromq_sub(self):
         context = zmq.Context()

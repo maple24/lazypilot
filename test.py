@@ -1,4 +1,5 @@
 import requests
+import time
 
 
 class HTTPRequester:
@@ -48,7 +49,12 @@ if __name__ == "__main__":
     # post_response = requester.send_request("POST", "publish/", data=start_cam)
     # post_response = requester.send_request("POST", "publish/", data=stop_cam)
     # post_response = requester.send_request("POST", "publish/", data=start_cam)
-    # post_response = requester.send_request("POST", "publish/", data=start_video)
-    # post_response = requester.send_request("POST", "publish/", data=stop_video)
-    post_response = requester.send_request("POST", "publish/", data=image_compare)
-    print("POST Response:", post_response)
+    # print("POST Response:", post_response)
+    while True:
+        post_response = requester.send_request("POST", "publish/", data=start_video)
+        for i in range(10):
+            post_response = requester.send_request("POST", "publish/", data=image_compare)
+            time.sleep(2)
+        time.sleep(40)
+        post_response = requester.send_request("POST", "publish/", data=stop_video)
+        

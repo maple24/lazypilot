@@ -87,7 +87,7 @@ class WebcamApp:
 
         self.start_video_button = tk.Button(
             self.button_frame,
-            text="Start Video",
+            text="Start Record",
             command=self.start_video,
             state=tk.DISABLED,
         )
@@ -95,7 +95,7 @@ class WebcamApp:
 
         self.stop_video_button = tk.Button(
             self.button_frame,
-            text="Stop Video",
+            text="Stop Record",
             command=self.stop_video,
             state=tk.DISABLED,
         )
@@ -319,8 +319,11 @@ class WebcamApp:
                 self.canvas.delete(self.photo)  # Delete the existing image
             if self.frames_queue:
                 recent_frame = self.frames_queue[-1]
-                self.photo = ImageTk.PhotoImage(image=Image.fromarray(recent_frame))
-                self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+                try:
+                    self.photo = ImageTk.PhotoImage(image=Image.fromarray(recent_frame))
+                    self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+                except Exception as e:
+                    logger.exception(f"An error occurred: {str(e)}")
         self.canvas.after(10, self.update_camera_feed)
 
     def start_region_selection(self):
